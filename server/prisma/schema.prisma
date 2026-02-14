@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CANDIDATE
+  ADMIN
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum Language {
+  PYTHON
+  JAVA
+  CPP
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  password     String
+  role         Role      @default(CANDIDATE)
+  avatar       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  submissions       Submission[]
+  interviewSessions InterviewSession[]
+
+  @@map("users")
+}
+
+model Question {
+  id          String     @id @default(cuid())
+  title       String
+  description String     @db.Text
+  difficulty  Difficulty @default(MEDIUM)
+  tags        String[]
+  hints       String[]
+  constraints String?    @db.Text
+  examples    String?    @db.Text
+  starterCode Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  testCases    TestCase[]
+  submissions  Submission[]
+
+  @@map("questions")
+}
+
+model TestCase {
+  id         String   @id @default(cuid())
+  questionId String
+  input      String   @db.Text
+  expected   String   @db.Text
+  isHidden   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("test_cases")
+}
+
+model Submission {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  code       String   @db.Text
+  language   Language
+  status     String   @default("pending")
+  stdout     String?  @db.Text
+  stderr     String?  @db.Text
+  runtime    Float?
+  memory     Float?
+  passed     Int      @default(0)
+  total      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  evaluation AIEvaluation?
+
+  @@map("submissions")
+}
+
+model AIEvaluation {
+  id               String   @id @default(cuid())
+  submissionId     String   @unique
+  logicScore       Float
+  readabilityScore Float
+  optimizationScore Float
+  edgeCaseAnalysis String   @db.Text
+  suggestions      String[]
+  timeComplexity   String
+  spaceComplexity  String
+  overallScore     Float
+  rawResponse      Json?
+  createdAt        DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@map("ai_evaluations")
+}
+
+model InterviewSession {
+  id        String   @id @default(cuid())
+  userId    String
+  topic     String?
+  mode      String   @default("standard")
+  status    String   @default("active")
+  score     Float?
+  feedback  String?  @db.Text
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages InterviewMessage[]
+
+  @@map("interview_sessions")
+}
+
+model InterviewMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("interview_messages")
+}

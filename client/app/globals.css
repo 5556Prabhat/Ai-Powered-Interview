@@ -1,0 +1,312 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ═══════════════════════════════════════════════════════════════
+   Theme Variables
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg-primary: #0A0A0A;
+  --bg-secondary: #111111;
+  --bg-tertiary: #141414;
+  --text-primary: #E5E7EB;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+  --border-color: #1F1F1F;
+  --glass-bg: rgba(20, 20, 20, 0.7);
+  --glass-border: rgba(251, 191, 36, 0.06);
+
+  /* Accent — Gold by default */
+  --accent: #FBBF24;
+  --accent-deep: #F59E0B;
+  --accent-muted: #D97706;
+  --accent-rgb: 251, 191, 36;
+  --accent-deep-rgb: 245, 158, 11;
+  --accent-muted-rgb: 217, 119, 6;
+}
+
+/* ── Gold Theme ── */
+.theme-gold,
+.theme-gold .dark {
+  --accent: #FBBF24;
+  --accent-deep: #F59E0B;
+  --accent-muted: #D97706;
+  --accent-rgb: 251, 191, 36;
+  --accent-deep-rgb: 245, 158, 11;
+  --accent-muted-rgb: 217, 119, 6;
+  --glass-border: rgba(251, 191, 36, 0.08);
+}
+
+/* ── Dark Theme (Blue accents) ── */
+.theme-dark,
+.theme-dark .dark {
+  --accent: #60A5FA;
+  --accent-deep: #3B82F6;
+  --accent-muted: #2563EB;
+  --accent-rgb: 96, 165, 250;
+  --accent-deep-rgb: 59, 130, 246;
+  --accent-muted-rgb: 37, 99, 235;
+  --glass-border: rgba(96, 165, 250, 0.08);
+}
+
+.dark {
+  --bg-primary: #0A0A0A;
+  --bg-secondary: #111111;
+  --bg-tertiary: #141414;
+  --text-primary: #E5E7EB;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+  --border-color: #1F1F1F;
+  --glass-bg: rgba(20, 20, 20, 0.75);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Base Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #0A0A0A;
+  color: #E5E7EB;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Glassmorphism
+   ═══════════════════════════════════════════════════════════════ */
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+}
+
+.glass-card {
+  background: rgba(20, 20, 20, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid #1F1F1F;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(var(--accent-rgb), 0.2);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 0 20px rgba(var(--accent-rgb), 0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Gradient Text — Accent-driven
+   ═══════════════════════════════════════════════════════════════ */
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 50%, var(--accent-muted) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Gradient Button — Accent-driven
+   ═══════════════════════════════════════════════════════════════ */
+
+.gradient-btn {
+  background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+  color: #000000;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.gradient-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.gradient-btn:hover::before {
+  left: 100%;
+}
+
+.gradient-btn:hover {
+  transform: scale(1.03);
+  box-shadow: 0 8px 30px rgba(var(--accent-rgb), 0.4), 0 0 15px rgba(var(--accent-rgb), 0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Secondary Button — Accent outline
+   ═══════════════════════════════════════════════════════════════ */
+
+.secondary-btn {
+  background: transparent;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  color: var(--accent);
+  padding: 12px 32px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.secondary-btn:hover {
+  background: var(--accent);
+  color: #000000;
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Loading Skeleton
+   ═══════════════════════════════════════════════════════════════ */
+
+.skeleton {
+  background: linear-gradient(90deg, #141414 25%, #1F1F1F 50%, #141414 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Typing Indicator
+   ═══════════════════════════════════════════════════════════════ */
+
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 12px 16px;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: typingBounce 1.4s infinite ease-in-out both;
+}
+
+.typing-indicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes typingBounce {
+
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+
+  40% {
+    transform: scale(1);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Scrollbar
+   ═══════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6B7280;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Score Ring
+   ═══════════════════════════════════════════════════════════════ */
+
+.score-ring {
+  transform: rotate(-90deg);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Mesh Background — Accent-driven
+   ═══════════════════════════════════════════════════════════════ */
+
+.mesh-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(at 40% 20%, rgba(var(--accent-rgb), 0.08) 0px, transparent 50%),
+    radial-gradient(at 80% 70%, rgba(var(--accent-deep-rgb), 0.06) 0px, transparent 50%),
+    radial-gradient(at 10% 90%, rgba(var(--accent-rgb), 0.05) 0px, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.dark .mesh-bg {
+  background:
+    radial-gradient(at 40% 20%, rgba(var(--accent-rgb), 0.1) 0px, transparent 50%),
+    radial-gradient(at 80% 70%, rgba(var(--accent-deep-rgb), 0.08) 0px, transparent 50%),
+    radial-gradient(at 10% 90%, rgba(var(--accent-rgb), 0.06) 0px, transparent 50%);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Gold Glow & Border (now accent-driven)
+   ═══════════════════════════════════════════════════════════════ */
+
+.gold-glow {
+  box-shadow: inset 0 0 20px rgba(var(--accent-rgb), 0.1), 0 0 15px rgba(var(--accent-rgb), 0.05);
+}
+
+.gold-border-glow {
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.1);
+}
