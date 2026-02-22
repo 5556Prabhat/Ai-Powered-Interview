@@ -8,6 +8,7 @@ import { authRoutes } from './routes/authRoutes';
 import { questionRoutes } from './routes/questionRoutes';
 import { submissionRoutes } from './routes/submissionRoutes';
 import { interviewRoutes } from './routes/interviewRoutes';
+import { executeRoutes } from './routes/executeRoute';
 import { errorHandler } from './middleware/errorHandler';
 import { setupInterviewSocket } from './socket/interviewSocket';
 
@@ -41,6 +42,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/interviews', interviewRoutes);
+app.use('/api/execute', executeRoutes);
 
 // Error handler
 app.use(errorHandler);

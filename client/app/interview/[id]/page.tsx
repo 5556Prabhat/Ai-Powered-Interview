@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useParams } from 'next/navigation';
-import { Play, Send, Brain, Clock, MemoryStick, ChevronDown } from 'lucide-react';
+import {
+    Play, Send, Brain, Clock, ChevronDown, ChevronUp,
+    CheckCircle2, XCircle, AlertTriangle, Terminal,
+} from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Editor from '@/components/Editor';
 import AIChatPanel from '@/components/AIChatPanel';
@@ -15,12 +18,18 @@ export default function InterviewDetailPage() {
     const params = useParams();
     const id = params?.id as string;
     const {
-        currentQuestion, code, language, isRunning, executionResult, aiEvaluation, isEvaluating,
-        setQuestion, setCode, setLanguage, setIsRunning, setExecutionResult, setAIEvaluation, setIsEvaluating,
+        currentQuestion, code, language, isRunning, executionResult, testCaseResults,
+        aiEvaluation, isEvaluating,
+        setQuestion, setCode, setLanguage, setIsRunning, setExecutionResult,
+        setTestCaseResults, setAIEvaluation, setIsEvaluating,
     } = useInterviewStore();
 
     const [activeTab, setActiveTab] = useState<'problem' | 'result' | 'ai'>('problem');
     const [showChat, setShowChat] = useState(false);
+    const [expandedTests, setExpandedTests] = useState<Set<number>>(new Set());
+    const [passedCount, setPassedCount] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
+    const [compilationError, setCompilationError] = useState<string | null>(null);
 
     useEffect(() => {
         fetchQuestion();
@@ -49,28 +58,77 @@ export default function InterviewDetailPage() {
                     JAVA: 'class Solution {\n    public int[] twoSum(int[] nums, int target) {\n        return new int[]{};\n    }\n}',
                     CPP: '#include <vector>\nusing namespace std;\n\nvector<int> twoSum(vector<int>& nums, int target) {\n    return {};\n}',
                 },
+                testCases: [
+                    { input: '[2,7,11,15]\n9', expected: '[0,1]', isHidden: false },
+                    { input: '[3,2,4]\n6', expected: '[1,2]', isHidden: false },
+                ],
             });
             setCode('def two_sum(nums, target):\n    # Write your solution here\n    pass');
         }
     };
 
+    const toggleTestExpand = (index: number) => {
+        setExpandedTests(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) next.delete(index);
+            else next.add(index);
+            return next;
+        });
+    };
+
     const handleRun = async () => {
         setIsRunning(true);
         setActiveTab('result');
+        setTestCaseResults(null);
+        setCompilationError(null);
+        setExpandedTests(new Set());
+
         try {
-            const { data } = await api.post('/submissions', {
-                questionId: id,
+            const langMap: Record<string, string> = { PYTHON: 'python', JAVA: 'java', CPP: 'cpp' };
+
+            // Get visible test cases from the question
+            const visibleTestCases = currentQuestion?.testCases
+                ?.filter((tc: any) => !tc.isHidden)
+                ?.map((tc: any) => ({ input: tc.input, expected: tc.expected })) || [];
+
+            const { data } = await api.post('/execute', {
+                language: langMap[language] || language.toLowerCase(),
                 code,
-                language,
+                testCases: visibleTestCases.length > 0 ? visibleTestCases : undefined,
             });
-            setExecutionResult(data.execution);
-            if (data.submission?.evaluation) {
-                setAIEvaluation(data.submission.evaluation);
+
+            if (data.testCaseResults) {
+                // Test case mode
+                setTestCaseResults(data.testCaseResults);
+                setPassedCount(data.passed || 0);
+                setTotalCount(data.total || 0);
+                setCompilationError(data.compilationError || null);
+                setExecutionResult({
+                    stdout: '',
+                    stderr: '',
+                    runtime: data.runtime || 0,
+                    memory: 0,
+                });
+                // Auto-expand first failed test case
+                const firstFailed = data.testCaseResults.findIndex((r: any) => !r.passed);
+                if (firstFailed >= 0) {
+                    setExpandedTests(new Set([firstFailed]));
+                }
+            } else {
+                // Plain execution mode (no test cases)
+                setTestCaseResults(null);
+                setExecutionResult({
+                    stdout: data.output || '',
+                    stderr: data.stderr || data.error || '',
+                    runtime: data.runtime || 0,
+                    memory: 0,
+                });
             }
         } catch (err: any) {
+            setTestCaseResults(null);
             setExecutionResult({
                 stdout: '',
-                stderr: err.error || 'Execution failed. Make sure the backend is running.',
+                stderr: err.error || 'Execution failed. Make sure the backend and Docker are running.',
                 runtime: 0,
                 memory: 0,
             });
@@ -89,6 +147,14 @@ export default function InterviewDetailPage() {
                 language,
             });
 
+            // Update test case results from submission
+            if (data.testCaseResults) {
+                setTestCaseResults(data.testCaseResults);
+                setPassedCount(data.passed || 0);
+                setTotalCount(data.total || 0);
+                setCompilationError(data.compilationError || null);
+            }
+
             // Poll for evaluation
             const pollEval = async (submissionId: string, attempts = 0): Promise<void> => {
                 if (attempts > 15) {
@@ -104,7 +170,6 @@ export default function InterviewDetailPage() {
                 }
             };
 
-            setExecutionResult(data.execution);
             await pollEval(data.submission.id);
         } catch {
             setIsEvaluating(false);
@@ -117,6 +182,8 @@ export default function InterviewDetailPage() {
             setCode(currentQuestion.starterCode[lang]);
         }
     };
+
+    const allPassed = testCaseResults && passedCount === totalCount && totalCount > 0;
 
     return (
         <div className="min-h-screen flex">
@@ -203,13 +270,19 @@ export default function InterviewDetailPage() {
                                 <button
                                     key={tab.key}
                                     onClick={() => setActiveTab(tab.key as any)}
-                                    className={`flex-1 py-3 text-sm font-medium transition-all
+                                    className={`flex-1 py-3 text-sm font-medium transition-all relative
                     ${activeTab === tab.key
                                             ? 'text-[#FBBF24] border-b-2 border-[#FBBF24] bg-[#FBBF24]/5'
                                             : 'text-[#9CA3AF] hover:text-[#E5E7EB]'
                                         }`}
                                 >
                                     {tab.label}
+                                    {tab.key === 'result' && testCaseResults && (
+                                        <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold ${allPassed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                                            }`}>
+                                            {passedCount}/{totalCount}
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -273,9 +346,189 @@ export default function InterviewDetailPage() {
                                     {isRunning ? (
                                         <div className="flex flex-col items-center py-12">
                                             <div className="w-12 h-12 border-3 border-[#FBBF24]/30 border-t-[#FBBF24] rounded-full animate-spin mb-4" />
-                                            <p className="text-[#9CA3AF]">Running your code...</p>
+                                            <p className="text-[#9CA3AF]">Running your code against test cases...</p>
+                                        </div>
+                                    ) : testCaseResults && testCaseResults.length > 0 ? (
+                                        <div className="space-y-4">
+                                            {/* ── Summary Banner ── */}
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className={`rounded-xl p-4 border ${compilationError
+                                                    ? 'bg-red-500/5 border-red-500/20'
+                                                    : allPassed
+                                                        ? 'bg-green-500/5 border-green-500/20'
+                                                        : 'bg-red-500/5 border-red-500/20'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        {compilationError ? (
+                                                            <AlertTriangle className="w-6 h-6 text-red-400" />
+                                                        ) : allPassed ? (
+                                                            <CheckCircle2 className="w-6 h-6 text-green-400" />
+                                                        ) : (
+                                                            <XCircle className="w-6 h-6 text-red-400" />
+                                                        )}
+                                                        <div>
+                                                            <h3 className={`font-bold text-lg ${compilationError
+                                                                ? 'text-red-400'
+                                                                : allPassed ? 'text-green-400' : 'text-red-400'
+                                                                }`}>
+                                                                {compilationError
+                                                                    ? 'Compilation Error'
+                                                                    : allPassed
+                                                                        ? 'Accepted'
+                                                                        : 'Wrong Answer'}
+                                                            </h3>
+                                                            <p className="text-xs text-[#6B7280] mt-0.5">
+                                                                {compilationError
+                                                                    ? 'Your code failed to compile'
+                                                                    : `${passedCount} / ${totalCount} test cases passed`}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 text-sm">
+                                                        <div className="flex items-center gap-1.5 text-[#9CA3AF]">
+                                                            <Clock className="w-4 h-4 text-[#FBBF24]" />
+                                                            <span className="font-mono text-[#E5E7EB]">{executionResult?.runtime || 0}ms</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Progress bar */}
+                                                {!compilationError && (
+                                                    <div className="mt-3 h-2 bg-[#1F1F1F] rounded-full overflow-hidden">
+                                                        <motion.div
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: `${totalCount > 0 ? (passedCount / totalCount) * 100 : 0}%` }}
+                                                            transition={{ duration: 0.6, ease: 'easeOut' }}
+                                                            className={`h-full rounded-full ${allPassed ? 'bg-green-500' : 'bg-gradient-to-r from-green-500 to-red-500'}`}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </motion.div>
+
+                                            {/* ── Compilation Error Detail ── */}
+                                            {compilationError && (
+                                                <div className="bg-[#111111] rounded-xl border border-red-500/20 p-4">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Terminal className="w-4 h-4 text-red-400" />
+                                                        <h4 className="text-sm font-semibold text-red-400">Compiler Output</h4>
+                                                    </div>
+                                                    <pre className="text-sm font-mono text-red-300 whitespace-pre-wrap bg-[#0A0A0A] rounded-lg p-3 border border-[#1F1F1F]">
+                                                        {compilationError}
+                                                    </pre>
+                                                </div>
+                                            )}
+
+                                            {/* ── Individual Test Cases ── */}
+                                            {!compilationError && (
+                                                <div className="space-y-2">
+                                                    {testCaseResults.map((result: any, index: number) => (
+                                                        <motion.div
+                                                            key={index}
+                                                            initial={{ opacity: 0, y: 10 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            transition={{ delay: index * 0.05 }}
+                                                            className={`rounded-xl border transition-all ${result.passed
+                                                                ? 'bg-[#111111] border-[#1F1F1F] hover:border-green-500/30'
+                                                                : 'bg-[#111111] border-red-500/20 hover:border-red-500/40'
+                                                                }`}
+                                                        >
+                                                            {/* Test case header */}
+                                                            <button
+                                                                onClick={() => toggleTestExpand(index)}
+                                                                className="w-full flex items-center justify-between p-4"
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    {result.passed ? (
+                                                                        <div className="w-7 h-7 rounded-lg bg-green-500/15 flex items-center justify-center">
+                                                                            <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center">
+                                                                            <XCircle className="w-4 h-4 text-red-400" />
+                                                                        </div>
+                                                                    )}
+                                                                    <span className="text-sm font-medium text-[#E5E7EB]">
+                                                                        Test Case {result.testCase}
+                                                                    </span>
+                                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${result.passed
+                                                                        ? 'bg-green-500/10 text-green-400'
+                                                                        : 'bg-red-500/10 text-red-400'
+                                                                        }`}>
+                                                                        {result.passed ? 'PASSED' : result.error?.includes('Time Limit') ? 'TLE' : result.error?.includes('Runtime') ? 'RE' : 'FAILED'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="text-xs text-[#6B7280] font-mono">{result.runtime}ms</span>
+                                                                    {expandedTests.has(index) ? (
+                                                                        <ChevronUp className="w-4 h-4 text-[#6B7280]" />
+                                                                    ) : (
+                                                                        <ChevronDown className="w-4 h-4 text-[#6B7280]" />
+                                                                    )}
+                                                                </div>
+                                                            </button>
+
+                                                            {/* Expanded details */}
+                                                            <AnimatePresence>
+                                                                {expandedTests.has(index) && (
+                                                                    <motion.div
+                                                                        initial={{ height: 0, opacity: 0 }}
+                                                                        animate={{ height: 'auto', opacity: 1 }}
+                                                                        exit={{ height: 0, opacity: 0 }}
+                                                                        transition={{ duration: 0.2 }}
+                                                                        className="overflow-hidden"
+                                                                    >
+                                                                        <div className="px-4 pb-4 space-y-3 border-t border-[#1F1F1F] pt-3">
+                                                                            {/* Input */}
+                                                                            <div>
+                                                                                <span className="text-[10px] uppercase tracking-wider text-[#6B7280] font-semibold">Input</span>
+                                                                                <pre className="mt-1 bg-[#0A0A0A] rounded-lg p-3 text-sm font-mono text-[#E5E7EB] whitespace-pre-wrap border border-[#1F1F1F]">
+                                                                                    {result.input}
+                                                                                </pre>
+                                                                            </div>
+
+                                                                            {/* Expected Output */}
+                                                                            <div>
+                                                                                <span className="text-[10px] uppercase tracking-wider text-[#6B7280] font-semibold">Expected Output</span>
+                                                                                <pre className="mt-1 bg-[#0A0A0A] rounded-lg p-3 text-sm font-mono text-green-300 whitespace-pre-wrap border border-green-500/10">
+                                                                                    {result.expected}
+                                                                                </pre>
+                                                                            </div>
+
+                                                                            {/* Your Output */}
+                                                                            <div>
+                                                                                <span className="text-[10px] uppercase tracking-wider text-[#6B7280] font-semibold">Your Output</span>
+                                                                                <pre className={`mt-1 bg-[#0A0A0A] rounded-lg p-3 text-sm font-mono whitespace-pre-wrap border ${result.passed
+                                                                                    ? 'text-green-300 border-green-500/10'
+                                                                                    : 'text-red-300 border-red-500/10'
+                                                                                    }`}>
+                                                                                    {result.actual?.trim() || '(no output)'}
+                                                                                </pre>
+                                                                            </div>
+
+                                                                            {/* Error message if any */}
+                                                                            {result.error && !result.passed && (
+                                                                                <div>
+                                                                                    <span className="text-[10px] uppercase tracking-wider text-red-400 font-semibold">Error</span>
+                                                                                    <pre className="mt-1 bg-[#0A0A0A] rounded-lg p-3 text-xs font-mono text-red-300 whitespace-pre-wrap border border-red-500/10">
+                                                                                        {result.error}
+                                                                                    </pre>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </motion.div>
+                                                                )}
+                                                            </AnimatePresence>
+                                                        </motion.div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     ) : executionResult ? (
+                                        /* ── Fallback: Plain execution result (no test cases) ── */
                                         <div className="space-y-4">
                                             <div className="flex items-center gap-4 mb-4">
                                                 <div className="flex items-center gap-2 text-sm">

@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { submissionService } from '../services/submissionService';
 import { AuthRequest } from '../middleware/auth';
 import { evaluateCode } from '../ai/evaluator';
-import { runCode } from '../execution/dockerRunner';
+import { runWithTestCases } from '../execution/dockerRunner';
+import { questionService } from '../services/questionService';
 
 export const submissionController = {
     async submit(req: AuthRequest, res: Response): Promise<void> {
@@ -10,23 +11,45 @@ export const submissionController = {
             const { questionId, code, language } = req.body;
             const userId = req.userId!;
 
-            // Step 1: Execute code
-            const executionResult = await runCode(code, language);
+            // Step 1: Fetch question with test cases
+            const question = await questionService.getById(questionId);
+            const testCases = question.testCases.map((tc: any) => ({
+                input: tc.input,
+                expected: tc.expected,
+                isHidden: tc.isHidden,
+            }));
 
-            // Step 2: Save submission
+            // Map language enum to lowercase for the runner
+            const langMap: Record<string, string> = { PYTHON: 'python', JAVA: 'java', CPP: 'cpp' };
+            const lang = langMap[language] || language.toLowerCase();
+
+            // Step 2: Run code against all test cases
+            const testCaseResult = await runWithTestCases(
+                code,
+                lang,
+                testCases.map((tc: any) => ({ input: tc.input, expected: tc.expected }))
+            );
+
+            // Step 3: Save submission with passed/total
             const submission = await submissionService.create({
                 userId,
                 questionId,
                 code,
                 language,
-                status: executionResult.error ? 'error' : 'completed',
-                stdout: executionResult.stdout,
-                stderr: executionResult.stderr,
-                runtime: executionResult.runtime,
-                memory: executionResult.memory,
+                status: testCaseResult.compilationError
+                    ? 'error'
+                    : testCaseResult.passed === testCaseResult.total
+                        ? 'accepted'
+                        : 'wrong_answer',
+                stdout: testCaseResult.results.map(r => r.actual).join('\n---\n'),
+                stderr: testCaseResult.compilationError || '',
+                runtime: testCaseResult.runtime,
+                memory: 0,
+                passed: testCaseResult.passed,
+                total: testCaseResult.total,
             });
 
-            // Step 3: AI evaluation (async, non-blocking response)
+            // Step 4: AI evaluation (async, non-blocking response)
             evaluateCode(code, language, questionId).then(async (evaluation) => {
                 if (evaluation) {
                     await submissionService.saveEvaluation(submission.id, evaluation);
@@ -35,14 +58,22 @@ export const submissionController = {
                 console.error('AI evaluation error:', err);
             });
 
+            // Filter out hidden test cases from response
+            const visibleResults = testCaseResult.results.filter((_, i) => !testCases[i].isHidden);
+
             res.status(201).json({
                 submission,
-                execution: executionResult,
+                testCaseResults: visibleResults,
+                passed: testCaseResult.passed,
+                total: testCaseResult.total,
+                runtime: testCaseResult.runtime,
+                compilationError: testCaseResult.compilationError,
             });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
     },
+
 
     async getSubmission(req: AuthRequest, res: Response): Promise<void> {
         try {
